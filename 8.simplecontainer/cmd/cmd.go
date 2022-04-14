@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 var (
-	//interactive bool 
 	tty bool
 )
 
