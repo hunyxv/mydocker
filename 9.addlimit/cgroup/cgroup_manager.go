@@ -21,7 +21,10 @@ func NewCgroupManager(containerid string, resource *subsystems.ResourceConfig) *
 // 将进程pid加入到这个cgroup中
 func (c *CgroupManager) Apply(pid int) error {
 	for _, subSysIns := range subsystems.SubsystemsIns {
-		subSysIns.Apply(c.ContainerID, pid)
+		err := subSysIns.Apply(c.ContainerID, pid)
+		if err != nil {
+			logrus.WithError(err).Error("cgroup subsystem apply fail")
+		}
 	}
 	return nil
 }

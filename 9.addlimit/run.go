@@ -18,10 +18,10 @@ func Run(tty bool, res *subsystems.ResourceConfig, command string) {
 
 	containerid := strings.ReplaceAll(uuid.NewRandom().String(), "-", "")
 	cgroupManager := cgroup.NewCgroupManager(containerid, res)
+	defer cgroupManager.Destroy()
 
 	cgroupManager.Set()
 	cgroupManager.Apply(parent.Process.Pid)
 
 	parent.Wait()
-	cgroupManager.Destroy()
 }
