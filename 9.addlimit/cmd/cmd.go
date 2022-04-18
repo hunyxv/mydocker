@@ -3,18 +3,26 @@ package main
 import (
 	"os"
 
-	simplecontainer "mydocker/8.simplecontainer"
 	"mydocker/8.simplecontainer/container"
+	addlimit "mydocker/9.addlimit"
+	"mydocker/9.addlimit/cgroup/subsystems"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
+
 var (
-	tty bool
+	tty      bool
+	memory   string
+	cpushare string
+	cpuset   string
 )
 
 func init() {
 	runCommand.Flags().BoolVarP(&tty, "tty", "t", false, "Allocate a pseudo-TTY")
+	runCommand.Flags().StringVarP(&memory, "memory", "m", "", "Memory limit")
+	runCommand.Flags().StringVarP(&cpushare, "cpu-share", "c", "", "CPU shares (relative weight)")
+	runCommand.Flags().StringVarP(&cpuset, "cpuset", "", "", "CPUs in which to allow execution")
 
 	rootCmd.AddCommand(runCommand)
 	rootCmd.AddCommand(initCommand)
@@ -32,16 +40,23 @@ var rootCmd = &cobra.Command{
 }
 
 var runCommand = &cobra.Command{
-	Use: "run [-it tty]",
+	Use:   "run [-t tty]",
 	Short: "Create a container with namespace and cgroups limit mydocker run -it [command]",
 	Run: func(cmd *cobra.Command, args []string) {
-		simplecontainer.Run(tty, args[0])
+		logrus.Info(memory, cpuset, cpushare)
+		resConf := &subsystems.ResourceConfig{
+			MemoryLimit: memory,
+			CpuSet:      cpuset,
+			CpuShare:    cpushare,
+		}
+
+		addlimit.Run(tty, resConf, args[0])
 	},
 }
 
 var initCommand = &cobra.Command{
-	Use: "init",
-	Short: "Init container process run user's process in container . Do not call it outside",
+	Use:    "init",
+	Hidden: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			return
@@ -51,7 +66,7 @@ var initCommand = &cobra.Command{
 	},
 }
 
-func main(){
+func main() {
 	if err := rootCmd.Execute(); err != nil {
 		panic(err)
 	}
