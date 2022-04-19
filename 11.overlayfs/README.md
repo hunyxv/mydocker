@@ -278,3 +278,65 @@ docker export -o ubuntu.tar a7b8788ff3dc
 ```
 
 2. 在当前路径执行 `go run cmd/cmd.go run -t -i ./ubuntu.tar --rm /bin/bash`
+
+```
+[root@xxxx 11.overlayfs]# go run cmd/cmd.go run -t -i ../../ubuntu.tar --rm /bin/bash
+INFO[0000] args: [/bin/bash] 1                          
+INFO[0000] command /bin/bash                            
+INFO[0000] current location is /var/lib/mydocker/c9e4fb26c02441e6b92eade1c757db05/merged 
+root@zzzz:/# pwd
+/
+root@zzzz:/# touch HelloWorld > hello.txt
+```
+
+查看 `/var/lib/mydocker/c9e4fb26c02441e6b92eade1c757db05/merged` 目录,可以在写入层看到多出的 `hello.txt` 文件:
+
+```
+[root@iZ2ze5mbkzmyf8w4wromjrZ c9e4fb26c02441e6b92eade1c757db05]# tree . -L 2
+.
+├── merged
+│   ├── bin
+│   ├── boot
+│   ├── dev
+│   ├── etc
+│   ├── hello.txt
+│   ├── home
+│   ├── lib
+│   ├── lib64
+│   ├── media
+│   ├── mnt
+│   ├── opt
+│   ├── proc
+│   ├── root
+│   ├── run
+│   ├── sbin
+│   ├── srv
+│   ├── sys
+│   ├── tmp
+│   ├── usr
+│   └── var
+├── readonly-layer
+│   ├── bin
+│   ├── boot
+│   ├── dev
+│   ├── etc
+│   ├── home
+│   ├── lib
+│   ├── lib64
+│   ├── media
+│   ├── mnt
+│   ├── opt
+│   ├── proc
+│   ├── root
+│   ├── run
+│   ├── sbin
+│   ├── srv
+│   ├── sys
+│   ├── tmp
+│   ├── usr
+│   └── var
+├── work
+│   └── work
+└── write-layer
+    └── hello.txt
+```
