@@ -1,9 +1,9 @@
-package addlimit
+package rootfs
 
 import (
-	"mydocker/9.addlimit/container"
-	"mydocker/9.addlimit/cgroup"
-	"mydocker/9.addlimit/cgroup/subsystems"
+	"mydocker/10.rootfs/cgroup"
+	"mydocker/10.rootfs/cgroup/subsystems"
+	"mydocker/10.rootfs/container"
 	"strings"
 
 	"github.com/pborman/uuid"
