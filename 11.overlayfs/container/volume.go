@@ -146,7 +146,7 @@ func (ws *WorkSpace) Remove() error {
 	for _, volumePath := range ws.volumes {
 		err = syscall.Unmount(volumePath, 0)
 		if err != nil {
-			logrus.WithError(err).Error("unmount volume fail, %s", volumePath)
+			logrus.WithError(err).Errorf("unmount volume fail, %s", volumePath)
 		}
 	}
 
