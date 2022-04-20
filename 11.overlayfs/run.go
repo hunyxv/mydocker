@@ -10,8 +10,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func Run(tty bool, res *subsystems.ResourceConfig, command string, image string, rm bool) error {
-	parent, err := container.NewParentProcess(tty, command, image, rm)
+func Run(tty bool, res *subsystems.ResourceConfig, command string, image string, rm bool, volumes []string) error {
+	parent, err := container.NewParentProcess(tty, command, image, rm, volumes)
 	if err != nil {
 		return err
 	}

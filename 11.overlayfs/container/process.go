@@ -17,38 +17,29 @@ var (
 type ParentProcess struct {
 	cmd *exec.Cmd
 
-	autoRemove bool
+	autoRemove  bool
+	ttl         bool
 	workSpace   *WorkSpace
 	containerid string
+	volumes []string
 }
 
-func NewParentProcess(ttl bool, command string, image string, rm bool) (*ParentProcess, error) {
+func NewParentProcess(ttl bool, command string, image string, rm bool, volumes []string) (*ParentProcess, error) {
 	cid := strings.ReplaceAll(uuid.NewRandom().String(), "-", "")
 
 	workSpace, err := NewWorkSpace(image, cid)
 	if err != nil {
 		return nil, err
 	}
-	
-	if err := workSpace.CreateWorkSpace(); err != nil {
-		return nil, err
-	}
 
-	cmd := newcommand(command)
-	if ttl {
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	} else {
-		// TODO
-	}
-
-	cmd.Dir = workSpace.containerFS + "/merged"
 	return &ParentProcess{
+		cmd: newcommand(command),
+
 		containerid: cid,
-		cmd:         cmd,
-		workSpace: workSpace,
-		autoRemove: rm,
+		workSpace:   workSpace,
+		autoRemove:  rm,
+		ttl:         ttl,
+		volumes: volumes,
 	}, nil
 }
 
@@ -57,7 +48,29 @@ func (pproc *ParentProcess) ContainerID() string {
 }
 
 func (pproc *ParentProcess) Start() error {
-	return pproc.cmd.Start()
+	if err := pproc.workSpace.CreateWorkSpace(); err != nil {
+		return err
+	}
+
+	cmd := pproc.cmd
+	if pproc.ttl {
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		// TODO
+	}
+	cmd.Dir = pproc.workSpace.RootPath()
+	for _, v := range pproc.volumes {
+		dirs := strings.Split(v, ":")
+		if len(dirs) == 2 {
+			err := pproc.workSpace.mountVolume(dirs[0], dirs[1])
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return cmd.Start()
 }
 
 func (pproc *ParentProcess) Wait() error {

@@ -18,6 +18,7 @@ var (
 	cpushare string
 	cpuset   string
 	image    string
+	volumes  []string
 )
 
 func init() {
@@ -27,6 +28,7 @@ func init() {
 	runCommand.Flags().StringVarP(&cpushare, "cpu-share", "c", "", "CPU shares (relative weight)")
 	runCommand.Flags().StringVarP(&cpuset, "cpuset", "", "", "CPUs in which to allow execution")
 	runCommand.Flags().StringVarP(&image, "image", "i", "", "Base image")
+	runCommand.Flags().StringArrayVarP(&volumes, "volume", "v", []string{}, "Bind mount a volume")
 
 	rootCmd.AddCommand(runCommand)
 	rootCmd.AddCommand(initCommand)
@@ -62,7 +64,7 @@ var runCommand = &cobra.Command{
 			subsystems.SubsystemsIns = append(subsystems.SubsystemsIns, &subsystems.CpuSubsystem{})
 		}
 
-		err := overlayfs.Run(tty, resConf, args[0], image, rm)
+		err := overlayfs.Run(tty, resConf, args[0], image, rm, volumes)
 		if err != nil {
 			logrus.WithError(err).Error("run error")
 		}

@@ -14,9 +14,14 @@ const (
 )
 
 type WorkSpace struct {
-	imagePath   string
-	containerID string
-	containerFS string
+	imagePath         string
+	containerID       string
+	containerFS       string
+	readonlyLayerPath string
+	writelayerpath    string
+	mergeDirPath      string
+	workDirPath       string
+	volumes           []string
 }
 
 func NewWorkSpace(imagePath, containerid string) (*WorkSpace, error) {
@@ -30,80 +35,119 @@ func NewWorkSpace(imagePath, containerid string) (*WorkSpace, error) {
 		os.MkdirAll(containerFS, 0710)
 	}
 	return &WorkSpace{
-		imagePath:   imagePath,
-		containerID: containerid,
-		containerFS: containerFS,
+		imagePath:         imagePath,
+		containerID:       containerid,
+		containerFS:       containerFS,
+		readonlyLayerPath: containerFS + "/readonly-layer",
+		writelayerpath:    containerFS + "/write-layer",
+		mergeDirPath:      containerFS + "/merged",
+		workDirPath:       containerFS + "/work",
 	}, nil
 }
 
 func (ws *WorkSpace) CreateWorkSpace() error {
-	readonlyLayer, err := ws.createReadOnlyLayer()
-	if err != nil {
+	if err := ws.createReadOnlyLayer(); err != nil {
 		return err
 	}
 
-	writeLayer, err := ws.createWriteLayer()
-	if err != nil {
+	if err := ws.createWriteLayer(); err != nil {
 		return err
 	}
 
-	merged, work, err := ws.createMergedAndMount()
-	if err != nil {
+	if err := ws.createMergedAndMount(); err != nil {
 		return err
 	}
 
-	options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", readonlyLayer, writeLayer, work)
-	return syscall.Mount("overlay", merged, "overlay", syscall.MS_NOSUID, options)
+	options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s",
+		ws.readonlyLayerPath, ws.writelayerpath, ws.workDirPath)
+	return syscall.Mount("overlay", ws.mergeDirPath, "overlay", syscall.MS_NOSUID, options)
 }
 
-func (ws *WorkSpace) createReadOnlyLayer() (string, error) {
+func (ws *WorkSpace) createReadOnlyLayer() error {
 	exist, err := PathExists(ws.imagePath)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if !exist {
-		return "", os.ErrNotExist
+		return os.ErrNotExist
 	}
 
-	path := ws.containerFS + "/readonly-layer"
-	err = os.Mkdir(path, 0710)
+	err = os.Mkdir(ws.readonlyLayerPath, 0710)
 	if err != nil {
 		if err == os.ErrExist {
-			return path, nil
+			return nil
 		}
-		return "", err
+		return err
 	}
 
-	if _, err := exec.Command("tar", "-xvf", ws.imagePath, "-C", path).CombinedOutput(); err != nil {
-		logrus.WithError(err).Errorf("'tar -xvf %s -C %s' fail", ws.imagePath, path)
-		return "", err
+	if _, err := exec.Command("tar", "-xvf", ws.imagePath, "-C", ws.readonlyLayerPath).CombinedOutput(); err != nil {
+		logrus.WithError(err).Errorf("'tar -xvf %s -C %s' fail", ws.imagePath, ws.readonlyLayerPath)
+		return err
 	}
-	return path, nil
+	return nil
 }
 
-func (ws *WorkSpace) createWriteLayer() (string, error) {
-	writeLayerPath := ws.containerFS + "/write-layer"
-	return writeLayerPath, os.Mkdir(writeLayerPath, 0710)
+func (ws *WorkSpace) createWriteLayer() error {
+	return os.Mkdir(ws.writelayerpath, 0710)
 }
 
-func (ws *WorkSpace) createMergedAndMount() (string, string, error) {
-	mergedPath := ws.containerFS + "/merged"
-	if err := os.Mkdir(mergedPath, 0710); err != nil {
-		return "", "", err
+func (ws *WorkSpace) createMergedAndMount() error {
+	if err := os.Mkdir(ws.mergeDirPath, 0710); err != nil {
+		return err
 	}
 
-	workPath := ws.containerFS + "/work"
-	if err := os.Mkdir(workPath, 0710); err != nil {
-		return "", "", err
+	return os.Mkdir(ws.workDirPath, 0710)
+}
+
+func (ws *WorkSpace) mountVolume(source, target string) error {
+	exist, err := PathExists(source)
+	if err != nil {
+		return err
 	}
 
-	return mergedPath, workPath, nil
+	if !exist {
+		err = os.MkdirAll(source, 0755)
+		if err != nil {
+			return fmt.Errorf("craete %s dir fail", source)
+		}
+	}
+
+	targetpath := ws.mergeDirPath + target
+	exist, err = PathExists(targetpath)
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		err = os.MkdirAll(targetpath, 0755)
+		if err != nil {
+			return fmt.Errorf("craete %s dir fail", targetpath)
+		}
+	}
+
+	err = syscall.Mount(source, targetpath, "bind", syscall.MS_BIND, "")
+	if err != nil {
+		return err
+	}
+
+	ws.volumes = append(ws.volumes, target)
+	return nil
+}
+
+func (ws *WorkSpace) RootPath() string {
+	return ws.mergeDirPath
 }
 
 func (ws *WorkSpace) Remove() error {
-	err := syscall.Unmount(ws.containerFS+"/merged", syscall.MS_NOSUID)
+	err := syscall.Unmount(ws.mergeDirPath, syscall.MS_NOSUID)
 	if err != nil {
-		return err
+		logrus.WithError(err).Error("unmount oberlayfs fail, %s", ws.mergeDirPath)
+	}
+	for _, volumePath := range ws.volumes {
+		err = syscall.Unmount(volumePath, 0)
+		if err != nil {
+			logrus.WithError(err).Error("unmount volume fail, %s", volumePath)
+		}
 	}
 
 	return os.RemoveAll(ws.containerFS)
